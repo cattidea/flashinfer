@@ -12,7 +12,6 @@ from typing import List, Optional
 
 import torch
 from torch.utils.cpp_extension import (
-    _TORCH_PATH,
     CUDA_HOME,
     _get_num_workers,
     _get_pybind11_abi_build_flags,
@@ -21,6 +20,11 @@ from torch.utils.cpp_extension import (
 from . import env as jit_env
 from ..utils import use_paddle_compatible_api
 from ..compilation_context import CompilationContext
+
+if use_paddle_compatible_api():
+    _TORCH_PATH = torch.__path__[0]
+else:
+    from torch.utils.cpp_extension import _TORCH_PATH  # type: ignore[no-redef]
 
 
 @functools.cache
@@ -85,15 +89,15 @@ def generate_ninja_build_for_op(
         system_includes.extend(
             [
                 "$torch_home/include",
-                "$torch_home/include/torch/csrc/api/include",
+                "$torch_home/include/paddle/phi/api/include/compat",
+                "$torch_home/include/paddle/phi/api/include/compat/torch/csrc/api/include",
             ]
         )
     else:
         system_includes.extend(
             [
                 "$torch_home/include",
-                "$torch_home/include/paddle/phi/api/include/compat",
-                "$torch_home/include/paddle/phi/api/include/compat/torch/csrc/api/include",
+                "$torch_home/include/torch/csrc/api/include",
             ]
         )
     system_includes += [p.resolve() for p in jit_env.CUTLASS_INCLUDE_DIRS]
@@ -104,6 +108,8 @@ def generate_ninja_build_for_op(
         "-DTORCH_API_INCLUDE_EXTENSION_H",
         "-DPy_LIMITED_API=0x03090000",
     ]
+    if use_paddle_compatible_api():
+        common_cflags.append("-DPADDLE_WITH_CUDA")
     common_cflags += _get_pybind11_abi_build_flags()
     common_cflags += _get_glibcxx_abi_build_flags()
     if extra_include_dirs is not None:
@@ -163,18 +169,6 @@ def generate_ninja_build_for_op(
     if use_paddle_compatible_api():
         ldflags.extend(
             [
-                "-L$torch_home/lib",
-                "-L$cuda_home/lib64",
-                "-lc10",
-                "-lc10_cuda",
-                "-ltorch_cpu",
-                "-ltorch_cuda",
-                "-ltorch",
-            ]
-        )
-    else:
-        ldflags.extend(
-            [
                 "-shared",
                 "-L$torch_home/libs",
                 "-L$torch_home/base",
@@ -185,6 +179,18 @@ def generate_ninja_build_for_op(
                 "-lphi_gpu",
                 "-lcommon",
                 "-lcudart",
+            ]
+        )
+    else:
+        ldflags.extend(
+            [
+                "-L$torch_home/lib",
+                "-L$cuda_home/lib64",
+                "-lc10",
+                "-lc10_cuda",
+                "-ltorch_cpu",
+                "-ltorch_cuda",
+                "-ltorch",
             ]
         )
 
