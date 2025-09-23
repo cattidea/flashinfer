@@ -38,9 +38,9 @@ dtype_map = {
     torch.int8: "int8_t",
     torch.uint8: "uint8_t",
     torch.int32: "int32_t",
-    torch.uint32: "uint32_t",
+    # torch.uint32: "uint32_t",
     torch.int64: "int64_t",
-    torch.uint64: "uint64_t",
+    # torch.uint64: "uint64_t",
 }
 
 dtype_cutlass_map = {
@@ -51,9 +51,9 @@ dtype_cutlass_map = {
     torch.int8: "cutlass::int8_t",
     torch.uint8: "cutlass::uint8_t",
     torch.int32: "cutlass::int32_t",
-    torch.uint32: "cutlass::uint32_t",
+    # torch.uint32: "cutlass::uint32_t",
     torch.int64: "cutlass::int64_t",
-    torch.uint64: "cutlass::uint64_t",
+    # torch.uint64: "cutlass::uint64_t",
 }
 
 filename_safe_dtype_map = {
@@ -64,9 +64,9 @@ filename_safe_dtype_map = {
     torch.int8: "i8",
     torch.uint8: "u8",
     torch.int32: "i32",
-    torch.uint32: "u32",
+    # torch.uint32: "u32",
     torch.int64: "i64",
-    torch.uint64: "u64",
+    # torch.uint64: "u64",
 }
 
 pos_encoding_mode_literal = {

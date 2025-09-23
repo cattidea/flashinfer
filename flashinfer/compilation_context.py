@@ -42,7 +42,8 @@ class CompilationContext:
                 self.TARGET_CUDA_ARCHS.add((int(major), minor))
         else:
             try:
-                for device in range(torch.cuda.device_count()):
+                # for device in range(torch.cuda.device_count()):
+                for device in range(1):
                     major, minor = torch.cuda.get_device_capability(device)
                     if major >= 9:
                         minor = str(minor) + "a"

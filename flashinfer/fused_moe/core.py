@@ -568,7 +568,8 @@ def get_cutlass_fused_moe_module(backend: str = "100", use_fast_build: bool = Fa
         enable_pdl: Optional[bool] = None,
     ) -> List[torch.Tensor]:
         if enable_pdl is None:
-            enable_pdl = device_support_pdl(input.device)
+            # enable_pdl = device_support_pdl(input.device)
+            enable_pdl = device_support_pdl(input.place)
         tuner = AutoTuner.get()
         MoERunner.refine_tuning_config(tune_max_num_tokens)
 
@@ -868,7 +869,8 @@ def cutlass_fused_moe(
         raise NotImplementedError("min latency mode not yet implemented for Blackwell.")
 
     if enable_pdl is None:
-        enable_pdl = device_support_pdl(input.device)
+        # enable_pdl = device_support_pdl(input.device)
+        enable_pdl = device_support_pdl(input.place)
 
     num_rows = input.shape[0]
     if min_latency_mode:
@@ -877,10 +879,16 @@ def cutlass_fused_moe(
     output_shape = (num_rows, hidden_size)
 
     if output is None:
-        output = torch.empty(output_shape, dtype=output_dtype, device=input.device)
+        # output = torch.empty(output_shape, dtype=output_dtype, device=input.device)
+        output = torch.empty(output_shape, dtype=output_dtype, device=input.place)
     else:
         check_shape_dtype_device(
-            output, output_shape, output_dtype, input.device, "output"
+            # output, output_shape, output_dtype, input.device, "output"
+            output,
+            output_shape,
+            output_dtype,
+            input.place,
+            "output",
         )
 
     major, minor = torch.cuda.get_device_capability()
