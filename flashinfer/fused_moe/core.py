@@ -20,7 +20,10 @@ from types import SimpleNamespace
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
-import tvm_ffi
+import paddle
+
+with paddle.compat.use_torch_proxy_guard(enable=False):
+    import tvm_ffi
 
 from ..artifacts import ArtifactPath, MetaInfoHash
 from ..autotuner import (
@@ -463,11 +466,15 @@ def get_cutlass_fused_moe_module(backend: str = "100", use_fast_build: bool = Fa
                 use_mxfp8_act_scaling,
             )
 
+            def paddle_dtype_to_tvm_ffi_dtype(dtype: paddle.dtype):
+                dtype_str = str(dtype).split(".", 1)[-1]
+                return tvm_ffi.dtype(dtype_str)
+
             if instance_key not in MoERunner.runner_dict:
                 MoERunner.runner_dict[instance_key] = module.init(
-                    x_dtype,
-                    weight_dtype,
-                    output_dtype,
+                    paddle_dtype_to_tvm_ffi_dtype(x_dtype),
+                    paddle_dtype_to_tvm_ffi_dtype(weight_dtype),
+                    paddle_dtype_to_tvm_ffi_dtype(output_dtype),
                     use_deepseek_fp8_block_scale,
                     use_w4_group_scaling,
                     use_mxfp8_act_scaling,
@@ -565,7 +572,8 @@ def get_cutlass_fused_moe_module(backend: str = "100", use_fast_build: bool = Fa
         enable_pdl: Optional[bool] = None,
     ) -> List[torch.Tensor]:
         if enable_pdl is None:
-            enable_pdl = device_support_pdl(input.device)
+            # enable_pdl = device_support_pdl(input.device)
+            enable_pdl = device_support_pdl(input.place)
         tuner = AutoTuner.get()
         MoERunner.refine_tuning_config(tune_max_num_tokens)
 
@@ -623,17 +631,22 @@ def get_cutlass_fused_moe_module(backend: str = "100", use_fast_build: bool = Fa
             else moe_runner.fused_moe_runner.run_moe
         )
         num_active_experts_per_node = torch.empty(
-            (1,), dtype=torch.int32, device=input.device
+            # (1,), dtype=torch.int32, device=input.device
+            (1,),
+            dtype=torch.int32,
+            device=input.place,
         )
         experts_to_token_score = torch.empty(
             (fc2_expert_weights.shape[0], input.shape[0]),
             dtype=torch.float32,
-            device=input.device,
+            # device=input.device,
+            device=input.place,
         )
         active_expert_global_ids = torch.empty(
             (fc2_expert_weights.shape[0],),
             dtype=torch.int32,
-            device=input.device,
+            # device=input.device,
+            device=input.place,
         )
         min_latency_output = (
             [
@@ -897,7 +910,8 @@ def cutlass_fused_moe(
         raise NotImplementedError("min latency mode not yet implemented for Blackwell.")
 
     if enable_pdl is None:
-        enable_pdl = device_support_pdl(input.device)
+        # enable_pdl = device_support_pdl(input.device)
+        enable_pdl = device_support_pdl(input.place)
 
     num_rows = input.shape[0]
     if min_latency_mode:
@@ -906,10 +920,16 @@ def cutlass_fused_moe(
     output_shape = (num_rows, hidden_size)
 
     if output is None:
-        output = torch.empty(output_shape, dtype=output_dtype, device=input.device)
+        # output = torch.empty(output_shape, dtype=output_dtype, device=input.device)
+        output = torch.empty(output_shape, dtype=output_dtype, device=input.place)
     else:
         check_shape_dtype_device(
-            output, output_shape, output_dtype, input.device, "output"
+            # output, output_shape, output_dtype, input.device, "output"
+            output,
+            output_shape,
+            output_dtype,
+            input.place,
+            "output",
         )
 
     major, minor = torch.cuda.get_device_capability()
