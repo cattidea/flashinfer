@@ -1,6 +1,10 @@
 import dataclasses
 import logging
 import os
+import paddle
+
+with paddle.compat.use_torch_proxy_guard(enable=False):
+    import tvm_ffi
 from contextlib import nullcontext
 from datetime import datetime
 from pathlib import Path
