@@ -16,13 +16,12 @@ limitations under the License.
 
 import functools
 import math
+import os
 from enum import Enum
 from typing import Callable, Dict, Iterable, Optional, Sequence, Tuple, Union
 
 import torch
 import torch.version
-from torch.torch_version import TorchVersion
-from torch.torch_version import __version__ as torch_version
 
 from .jit.spdlog import gen_spdlog_module
 
@@ -243,6 +242,7 @@ def canonicalize_torch_dtype(dtype: Union[torch.dtype, str]) -> torch.dtype:
 
 @functools.cache
 def get_compute_capability(device: torch.device) -> Tuple[int, int]:
+    return torch.device.cuda.get_device_capability(device.gpu_device_id())
     if device.type != "cuda":
         raise ValueError("device must be a cuda device")
     return torch.cuda.get_device_capability(device.index)
@@ -261,7 +261,13 @@ def _check_cached_qkv_data_type(
         )
 
 
-if TorchVersion(torch_version) < TorchVersion("2.4"):
+def use_paddle_compatible_api() -> bool:
+    return os.environ.get("PADDLE_COMPATIBLE_API", "0").lower() in ["1", "on", "true"]
+
+
+if use_paddle_compatible_api() or torch.torch_version.TorchVersion(
+    torch.torch_version.__version__
+) < torch.torch_version.TorchVersion("2.4"):
 
     def register_custom_op(
         name: str,
@@ -516,7 +522,7 @@ def check_shape_dtype_device(
     expected_device: Optional[torch.device],
     name: str,
 ) -> None:
-    if expected_shape and x.shape != torch.Size(expected_shape):
+    if expected_shape and tuple(x.shape) != torch.Size(expected_shape):
         raise ValueError(
             f"Invalid shape of {name}: expected {expected_shape}, got {x.shape}"
         )
@@ -524,7 +530,8 @@ def check_shape_dtype_device(
         raise ValueError(
             f"Invalid dtype of {name}: expected {expected_dtype}, got {x.dtype}"
         )
-    if expected_device and x.device != expected_device:
+    # if expected_device and x.device != expected_device:
+    if expected_device and x.place != expected_device:
         raise ValueError(
             f"Invalid device of {name}: expected {expected_device}, got {x.device}"
         )
@@ -560,8 +567,8 @@ def set_log_level(lvl_str: str) -> None:
 
 @functools.cache
 def device_support_pdl(device: torch.device) -> bool:
-    if device.type != "cuda":
-        return False
+    # if device.type != "cuda":
+    #     return False
     major, _ = get_compute_capability(device)
     return major >= 9
 
