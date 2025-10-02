@@ -1,7 +1,10 @@
 import dataclasses
 import logging
 import os
-import tvm_ffi
+import paddle
+
+with paddle.compat.use_torch_proxy_guard(enable=False):
+    import tvm_ffi
 from contextlib import nullcontext
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Union
