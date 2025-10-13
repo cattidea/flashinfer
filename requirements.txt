@@ -9,5 +9,5 @@ nvidia-ml-py
 packaging>=24.2
 requests
 tabulate
-torch
+# torch
 tqdm
