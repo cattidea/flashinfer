@@ -10,10 +10,7 @@ from packaging.version import Version
 from pathlib import Path
 from typing import List, Optional
 
-import paddle
-
-with paddle.compat.use_torch_proxy_guard(enable=False):
-    import tvm_ffi
+import tvm_ffi
 import torch
 
 from . import env as jit_env
