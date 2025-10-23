@@ -20,10 +20,6 @@ from types import SimpleNamespace
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
-import paddle
-
-with paddle.compat.use_torch_proxy_guard(enable=False):
-    import tvm_ffi
 
 from ..autotuner import (
     AutoTuner,
@@ -335,7 +331,9 @@ def get_cutlass_fused_moe_module(backend: str = "100", use_fast_build: bool = Fa
                 use_mxfp8_act_scaling,
             )
 
-            def paddle_dtype_to_tvm_ffi_dtype(dtype: paddle.dtype):
+            def paddle_dtype_to_tvm_ffi_dtype(dtype):
+                import tvm_ffi
+
                 dtype_str = str(dtype).split(".", 1)[-1]
                 return tvm_ffi.dtype(dtype_str)
 
