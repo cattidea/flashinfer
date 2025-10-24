@@ -180,7 +180,8 @@ def get_fp4_quantization_module(backend: str = "100"):
                 - Scale factors tensor with shape determined by layout and sf_vec_size
         """
         if enable_pdl is None:
-            enable_pdl = device_support_pdl(input.device)
+            # enable_pdl = device_support_pdl(input.device)
+            enable_pdl = device_support_pdl(input.place)
         out_val = torch.empty(
             (*input.shape[:-1], input.shape[-1] // 2),
             dtype=torch.uint8,
@@ -669,9 +670,11 @@ def fp4_quantize(
 
     assert input.shape[-1] % sf_vec_size == 0
     if enable_pdl is None:
-        enable_pdl = device_support_pdl(input.device)
+        # enable_pdl = device_support_pdl(input.device)
+        enable_pdl = device_support_pdl(input.place)
     # get input device sm version
-    major, minor = get_compute_capability(input.device)
+    # major, minor = get_compute_capability(input.device)
+    major, minor = get_compute_capability(input.place)
     x_q, sf = get_fp4_quantization_module(f"{major}{minor}").fp4_quantize_sm100(
         input,
         global_scale,
