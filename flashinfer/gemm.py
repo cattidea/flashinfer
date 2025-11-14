@@ -357,8 +357,8 @@ def fp8_gemm_sm100(
     runners = []
     # No e5m2 for cutlass
     is_e5m2 = a.dtype == torch.float8_e5m2 or b.dtype == torch.float8_e5m2
-    is_sm_supported = _match_sm_version(a.device, ["100", "103", "110"])
-    is_sm120_supported = _match_sm_version(a.device, ["120", "121"])
+    is_sm_supported = _match_sm_version(a.place, ["100", "103", "110"])
+    is_sm120_supported = _match_sm_version(a.place, ["120", "121"])
 
     if "cutlass" in runner_names and not is_e5m2:
         if is_sm_supported:
@@ -558,7 +558,7 @@ def get_tgv_gemm_sm10x_module(
                 # from [m,k]x[k,n]+[n,] to [n,k]x[k,m]+[n,]
                 gemm_fn = module.tgv_gemm
                 c = torch.empty(
-                    (a.shape[0], b.shape[1]), dtype=a.dtype, device=a.device
+                    (a.shape[0], b.shape[1]), dtype=a.dtype, device=a.place
                 )
                 gemm_fn(b.t(), a.t(), bias, tactic, c, pdl)
                 return c.t()
@@ -601,7 +601,7 @@ def tgv_gemm_sm100(
         - Tensor b is expected to be in column-major layout (transposed from typical PyTorch row-major)
     """
     # Verify SM100 architecture support
-    if not _match_sm_version(a.device, ["100", "103"]):
+    if not _match_sm_version(a.place, ["100", "103"]):
         raise ValueError("TGV GEMM requires SM100, SM103 architecture")
 
     # Verify dtype support
@@ -616,7 +616,7 @@ def tgv_gemm_sm100(
         )
 
     runners = []
-    use_sm_100f = is_sm100f_supported(a.device)
+    use_sm_100f = is_sm100f_supported(a.place)
     runners.append(get_tgv_gemm_sm10x_module(a.dtype, use_sm_100f).tgv_gemm_runner())
 
     tuner = AutoTuner.get()
@@ -718,7 +718,7 @@ def launch_compute_sm80_group_gemm_args(
     seg_indptr: torch.Tensor,
     weight_indices: Optional[torch.Tensor] = None,
 ):
-    device = x.device
+    device = x.place
     prob_type = torch.int32  # problem sizes -> int
     ptr_type = torch.int64  # pointers -> int64_t
     ld_type = torch.int64  # strides -> int64_t
@@ -780,7 +780,7 @@ def launch_compute_sm90_group_gemm_args(
     seg_indptr: torch.Tensor,
     weight_indices: Optional[torch.Tensor] = None,
 ):
-    device = x.device
+    device = x.place
     prob_type = torch.int32  # problem sizes -> int
     ptr_type = torch.int64  # pointers -> int64_t
     stride_type = torch.int64  # strides -> int64_t
@@ -896,7 +896,7 @@ class SegmentGEMMWrapper:
             segment GEMM kernels. Encouraged size is 128MB.
         """
         self._int_workspace_buffer = torch.empty(
-            (1024 * 1024,), dtype=torch.int8, device=float_workspace_buffer.device
+            (1024 * 1024,), dtype=torch.int8, device=float_workspace_buffer.place
         )
         self._float_workspace_buffer = float_workspace_buffer
         self.backend = backend
@@ -1003,18 +1003,18 @@ class SegmentGEMMWrapper:
             else:
                 out_dtype = x.dtype
             out = torch.zeros(
-                (cumulative_batch_size, d_out), dtype=out_dtype, device=x.device
+                (cumulative_batch_size, d_out), dtype=out_dtype, device=x.place
             )
         else:
             if out.shape != (cumulative_batch_size, d_out):
                 raise ValueError(
                     f"Output tensor shape mismatch, expected {cumulative_batch_size, d_out}, got {out.shape}"
                 )
-        empty_x_data = torch.empty(0, dtype=x.dtype, device=x.device)
-        empty_y_data = torch.empty(0, dtype=out.dtype, device=out.device)
+        empty_x_data = torch.empty(0, dtype=x.dtype, device=x.place)
+        empty_y_data = torch.empty(0, dtype=out.dtype, device=out.place)
 
         if self.backend == "auto":
-            backend = determine_gemm_backend(x.device)
+            backend = determine_gemm_backend(x.place)
         else:
             backend = self.backend
 
@@ -1308,10 +1308,10 @@ def execute_cudnn_gemm_fp4_graph(
 
     if workspace_buffer.numel() < graph.get_workspace_size():
         workspace_buffer = torch.empty(
-            graph.get_workspace_size(), device=a.device, dtype=torch.uint8
+            graph.get_workspace_size(), device=a.place, dtype=torch.uint8
         )
 
-    stream = torch.cuda.current_stream(a.device)
+    stream = torch.cuda.current_stream(a.place)
 
     graph.execute(variant_pack, workspace_buffer, handle=_get_cudnn_handle(stream))
 
@@ -1408,12 +1408,12 @@ def execute_cudnn_gemm_with_per_tensor_q_graph(
         UIDs.O_UID.value: c_final,
     }
 
-    stream = torch.cuda.current_stream(a.device)
+    stream = torch.cuda.current_stream(a.place)
     cudnn_handle = _get_cudnn_handle(stream)
 
     if workspace.numel() < graph.get_workspace_size():
         workspace = torch.empty(
-            graph.get_workspace_size(), device=a.device, dtype=torch.uint8
+            graph.get_workspace_size(), device=a.place, dtype=torch.uint8
         )
 
     graph.execute(variant_pack, workspace, handle=cudnn_handle)
@@ -1451,7 +1451,7 @@ def _cudnn_gemm_fp8(
         _torch_data_type_to_cudnn_data_type(a.dtype),
         _torch_data_type_to_cudnn_data_type(b.dtype),
         _torch_data_type_to_cudnn_data_type(torch_out_dtype),
-        a.device,
+        a.place,
     )
 
     execute_cudnn_gemm_with_per_tensor_q_graph(
@@ -1615,7 +1615,7 @@ def mm_fp8(
             )
         out = torch.empty(
             (m, n),
-            device=a.device,
+            device=a.place,
             dtype=out_dtype,
         )
     else:
@@ -1628,9 +1628,9 @@ def mm_fp8(
             raise ValueError(
                 f"Output shape mismatch. Expected {a.shape[0], b.shape[1]}, got {out.shape}."
             )
-        if out.device != a.device:
+        if out.place != a.place:
             raise ValueError(
-                f"Output device mismatch. Expected {a.device}, got {out.device}."
+                f"Output device mismatch. Expected {a.place}, got {out.place}."
             )
         if out_dtype is not None and out.dtype != out_dtype:
             raise ValueError(
@@ -1746,8 +1746,8 @@ def mm_fp4(
         )
     if alpha is not None and alpha.dtype != torch.float:
         raise ValueError(f"alpha must be a float tensor, got {alpha.dtype}")
-    if alpha is not None and alpha.numel() != 1:
-        raise ValueError(f"alpha must be a scalar, got {alpha.numel()}")
+    # if alpha is not None and alpha.numel() != 1:
+    #     raise ValueError(f"alpha must be a scalar, got {alpha.numel()}")
 
     if out_dtype not in (torch.bfloat16, torch.float16):
         raise ValueError(
@@ -1761,14 +1761,14 @@ def mm_fp4(
         raise ValueError("mxfp4 supports block_size = 32.")
     if backend != "trtllm" and use_8x4_sf_layout:
         raise ValueError("Only TRTLLM FP4 GEMM supports 8x4 scale factor layout.")
-    if backend == "trtllm" and _match_sm_version(a.device, ["110"]):
+    if backend == "trtllm" and _match_sm_version(a.place, ["110"]):
         raise ValueError("TRTLLM FP4 GEMM is not supported on SM110.")
     if backend != "cudnn" and not use_nvfp4:
         raise ValueError("Only cudnn FP4 GEMM supports mxfp4 quantization.")
     if (
         backend == "cudnn"
         and not use_nvfp4
-        and _match_sm_version(a.device, ["120"])
+        and _match_sm_version(a.place, ["120"])
         and cudnn.backend_version() < 91400
     ):
         raise LibraryError(
@@ -1779,12 +1779,12 @@ def mm_fp4(
     if out is None:
         out = torch.empty(
             (a.shape[0], b.shape[1]),
-            device=a.device,
+            device=a.place,
             dtype=out_dtype,
         )
 
     workspace_buffer = _get_cache_buf(
-        "mm_fp4_workspace", DEFAULT_WORKSPACE_SIZE, a.device
+        "mm_fp4_workspace", DEFAULT_WORKSPACE_SIZE, a.place
     )
 
     if backend == "cudnn":
@@ -1816,7 +1816,7 @@ def mm_fp4(
             cudnn.data_type.FP4_E2M1,
             _torch_data_type_to_cudnn_data_type(out_dtype),
             block_size,
-            a.device,
+            a.place,
             alpha is not None,
             use_nvfp4,
         )
@@ -1850,7 +1850,7 @@ def mm_fp4(
             b_descale = b_descale.view(torch.uint8)
 
         # Dispatch to the correct module based on device architecture
-        major, _ = get_compute_capability(a.device)
+        major, _ = get_compute_capability(a.place)
         if major == 12:
             gemm_module = get_gemm_sm120_module_cutlass_fp4()
         else:
@@ -1931,12 +1931,12 @@ def bmm_fp8(
     if out is None:
         out = torch.empty(
             (A.shape[0], A.shape[1], B.shape[2]),
-            device=A.device,
+            device=a.place,
             dtype=dtype,
         )
 
     workspace_buffer = _get_cache_buf(
-        "bmm_fp8_workspace", DEFAULT_WORKSPACE_SIZE, A.device
+        "bmm_fp8_workspace", DEFAULT_WORKSPACE_SIZE, a.place
     )
 
     if backend == "cudnn":
@@ -2029,11 +2029,11 @@ def gemm_fp8_nt_groupwise(
     -----
     The ``m`` should be padded to a multiple of 4 before calling this function, to accommodate the kernel's requirement.
     """
-    if backend == "trtllm" and _match_sm_version(a.device, ["110"]):
+    if backend == "trtllm" and _match_sm_version(a.place, ["110"]):
         raise ValueError("TRTLLM FP8 GEMM is not supported on SM110.")
 
     workspace_buffer = _get_cache_buf(
-        "gemm_fp8_nt_groupwise_workspace", DEFAULT_WORKSPACE_SIZE, a.device
+        "gemm_fp8_nt_groupwise_workspace", DEFAULT_WORKSPACE_SIZE, a.place
     )
     if a.ndim != 2 or b.ndim != 2:
         raise ValueError(f"Shape mismatch. a.shape = {a.shape}, b.shape = {b.shape}")
@@ -2060,24 +2060,24 @@ def gemm_fp8_nt_groupwise(
         out = torch.empty(
             a.shape[0],
             b.shape[0],
-            device=a.device,
+            device=a.place,
             dtype=out_dtype,
         )
 
     if backend == "cutlass":
-        if not _match_sm_version(a.device, ["100", "103", "110", "120", "121"]):
+        if not _match_sm_version(a.place, ["100", "103", "110", "120", "121"]):
             raise ValueError(
                 "gemm_fp8_nt_groupwise is only supported on SM100, SM103, SM110, SM120, or SM121 in cutlass backend."
             )
     elif backend == "trtllm":
-        if not _match_sm_version(a.device, ["100", "103"]):
+        if not _match_sm_version(a.place, ["100", "103"]):
             raise ValueError(
                 "gemm_fp8_nt_groupwise is only supported on SM100, SM103 in trtllm backend."
             )
 
     if backend == "cutlass":
         assert scale_major_mode is not None
-        if is_sm120a_supported(a.device) or is_sm121a_supported(a.device):
+        if is_sm120a_supported(a.place) or is_sm121a_supported(a.place):
             # SM120/121 doesn't use mma_sm parameter
             get_gemm_sm120_module().gemm_fp8_nt_groupwise(
                 workspace_buffer,
@@ -2089,7 +2089,7 @@ def gemm_fp8_nt_groupwise(
                 *scale_granularity_mnk,
                 scale_major_mode,
             )
-        elif is_sm100a_supported(a.device):
+        elif is_sm100a_supported(a.place):
             get_gemm_sm100_module().gemm_fp8_nt_groupwise(
                 workspace_buffer,
                 a,
@@ -2102,7 +2102,7 @@ def gemm_fp8_nt_groupwise(
                 mma_sm,
             )
         else:
-            raise ValueError(f"Unsupported device for FP8 GEMM: {a.device}")
+            raise ValueError(f"Unsupported device for FP8 GEMM: {a.place}")
     elif backend == "trtllm":
         assert scale_granularity_mnk == (1, 128, 128)
         assert a.shape[1] >= 256
@@ -2357,23 +2357,23 @@ def group_gemm_fp8_nt_groupwise(
     to accommodate the kernel's requirement.
     """
     if (
-        not is_sm100a_supported(a.device)
-        and not is_sm120a_supported(a.device)
-        and not is_sm121a_supported(a.device)
+        not is_sm100a_supported(a.place)
+        and not is_sm120a_supported(a.place)
+        and not is_sm121a_supported(a.place)
     ):
         raise ValueError(
             "gemm_fp8_nt_groupwise is only supported on SM100, SM120, and SM121."
         )
-    if not (_match_sm_version(a.device, ["100", "103", "110", "120", "121"])):
+    if not (_match_sm_version(a.place, ["100", "103", "110", "120", "121"])):
         raise ValueError(
             "gemm_fp8_nt_groupwise is only supported on SM100, SM103, SM110, SM120, or SM121."
         )
 
     int_workspace_buffer = _get_cache_buf(
-        "group_gemm_fp8_nt_groupwise_int_workspace", DEFAULT_WORKSPACE_SIZE, a.device
+        "group_gemm_fp8_nt_groupwise_int_workspace", DEFAULT_WORKSPACE_SIZE, a.place
     )
     float_workspace_buffer = _get_cache_buf(
-        "group_gemm_fp8_nt_groupwise_float_workspace", DEFAULT_WORKSPACE_SIZE, a.device
+        "group_gemm_fp8_nt_groupwise_float_workspace", DEFAULT_WORKSPACE_SIZE, a.place
     )
 
     assert a.dtype in [torch.float8_e4m3fn, torch.float8_e5m2]
@@ -2405,12 +2405,12 @@ def group_gemm_fp8_nt_groupwise(
 
     out_shape = (a.shape[0], n)
     if out is None:
-        out = torch.empty(out_shape, dtype=out_dtype, device=a.device)
+        out = torch.empty(out_shape, dtype=out_dtype, device=a.place)
     else:
         assert out.shape == out_shape
         assert out.dtype == out_dtype
 
-    if is_sm120a_supported(a.device) or is_sm121a_supported(a.device):
+    if is_sm120a_supported(a.place) or is_sm121a_supported(a.place):
         # it has correctness issues for num_groups > 1
         if num_groups > 1:
             raise RuntimeError(
@@ -2431,7 +2431,7 @@ def group_gemm_fp8_nt_groupwise(
             *scale_granularity_mnk,
             scale_major_mode,
         )
-    elif is_sm100a_supported(a.device):
+    elif is_sm100a_supported(a.place):
         get_gemm_sm100_module().group_gemm_fp8_nt_groupwise(
             int_workspace_buffer,
             float_workspace_buffer,
@@ -2449,7 +2449,7 @@ def group_gemm_fp8_nt_groupwise(
         )
     else:
         raise ValueError(
-            f"group_gemm_fp8_nt_groupwise requires SM100, SM120, or SM121, but got {a.device}"
+            f"group_gemm_fp8_nt_groupwise requires SM100, SM120, or SM121, but got {a.place}"
         )
     return out
 
@@ -2523,12 +2523,12 @@ def group_gemm_mxfp8_mxfp4_nt_groupwise(
     to accommodate the kernel's requirement.
     """
     int_workspace_buffer = _get_cache_buf(
-        "group_gemm_mxfp4_nt_groupwise_int_workspace", DEFAULT_WORKSPACE_SIZE, a.device
+        "group_gemm_mxfp4_nt_groupwise_int_workspace", DEFAULT_WORKSPACE_SIZE, a.place
     )
     float_workspace_buffer = _get_cache_buf(
         "group_gemm_mxfp4_nt_groupwise_float_workspace",
         DEFAULT_WORKSPACE_SIZE,
-        a.device,
+        a.place,
     )
 
     assert a.dtype in [torch.float8_e4m3fn, torch.float8_e5m2]
@@ -2563,7 +2563,7 @@ def group_gemm_mxfp8_mxfp4_nt_groupwise(
 
     out_shape = (a.shape[0], n)
     if out is None:
-        out = torch.empty(out_shape, dtype=out_dtype, device=a.device)
+        out = torch.empty(out_shape, dtype=out_dtype, device=a.place)
     else:
         assert out.shape == out_shape
         assert out.dtype == out_dtype
@@ -2600,12 +2600,12 @@ def pad_indptr_to_multiple_of_4(
     batch_size = m_indptr.shape[0] - 1
     m = m_indptr[1:] - m_indptr[:-1]
     m = m + 3 - (m + 3) % 4
-    padded_m_indptr = torch.cat((torch.zeros((1,), device=m.device, dtype=m.dtype), m))
+    padded_m_indptr = torch.cat((torch.zeros((1,), device=m.place, dtype=m.dtype), m))
     padded_m_indptr = padded_m_indptr.cumsum(dim=0, dtype=padded_m_indptr.dtype)
 
-    m_rank = torch.zeros((m_indptr[-1],), dtype=m_indptr.dtype, device=m_indptr.device)
+    m_rank = torch.zeros((m_indptr[-1],), dtype=m_indptr.dtype, device=m_indptr.place)
     padded_m_rank = torch.zeros(
-        (m_indptr[-1],), dtype=m_indptr.dtype, device=m_indptr.device
+        (m_indptr[-1],), dtype=m_indptr.dtype, device=m_indptr.place
     )
 
     compute_padding_mapping[(batch_size,)](
@@ -2735,14 +2735,14 @@ def group_deepgemm_fp8_nt_groupwise(
     """
     from flashinfer.deep_gemm import m_grouped_fp8_gemm_nt_contiguous
 
-    if not _match_sm_version(a.device, ["100", "103"]):
+    if not _match_sm_version(a.place, ["100", "103"]):
         raise ValueError(
             "m_grouped_fp8_gemm_nt_contiguous is only supported on SM100, SM100, SM103."
         )
 
     if out is None:
         out_dtype = out_dtype or torch.bfloat16
-        out = torch.empty(a.shape[0], b.shape[1], dtype=out_dtype, device=a.device)
+        out = torch.empty(a.shape[0], b.shape[1], dtype=out_dtype, device=a.place)
 
     m_grouped_fp8_gemm_nt_contiguous(
         (a, a_scale), (b, b_scale), out, m_indices, scale_granularity_mnk
@@ -2868,7 +2868,7 @@ def batch_deepgemm_fp8_nt_groupwise(
     """
     from flashinfer.deep_gemm import m_grouped_fp8_gemm_nt_masked
 
-    if not _match_sm_version(a.device, ["100", "103"]):
+    if not _match_sm_version(a.place, ["100", "103"]):
         raise ValueError(
             "m_grouped_fp8_gemm_nt_masked is only supported on SM100, SM103."
         )
@@ -2876,7 +2876,7 @@ def batch_deepgemm_fp8_nt_groupwise(
     if out is None:
         out_dtype = out_dtype or torch.bfloat16
         out = torch.empty(
-            a.shape[0], a.shape[1], b.shape[1], dtype=out_dtype, device=a.device
+            a.shape[0], a.shape[1], b.shape[1], dtype=out_dtype, device=a.place
         )
 
     m_grouped_fp8_gemm_nt_masked(

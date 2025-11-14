@@ -185,17 +185,20 @@ def get_fp4_quantization_module(backend: str = "100"):
         out_val = torch.empty(
             (*input.shape[:-1], input.shape[-1] // 2),
             dtype=torch.uint8,
-            device=input.device,
+            device=input.place,
         )
-        m = input.numel() // input.shape[-1]
-        k = input.shape[-1]
+        # m = input.numel() // input.shape[-1]
+        # k = input.shape[-1]
+        m = torch.shape(input)[0]
+        k = torch.shape(input)[1]
         if is_sf_swizzled_layout:
             out_sf_size = _compute_swizzled_layout_sf_size(
                 m, k // sf_vec_size, 8 if is_sf_8x4_layout else 128
             )
         else:
             out_sf_size = m * k // sf_vec_size
-        out_sf = torch.empty((out_sf_size,), dtype=torch.uint8, device=input.device)
+        out_sf = torch.empty((out_sf_size,), dtype=torch.uint8, device=input.place)
+
         module.fp4_quantize(
             input,
             global_scale,
@@ -235,7 +238,7 @@ def get_fp4_quantization_module(backend: str = "100"):
         out = torch.empty(
             (weight.shape[0], weight.shape[1] * 2),
             dtype=torch.float32,
-            device=weight.device,
+            device=weight.place,
         )
         module.mxfp4_dequantize_host(
             weight,
@@ -277,7 +280,7 @@ def get_fp4_quantization_module(backend: str = "100"):
         out = torch.empty(
             (num_experts * expert_out_size,),
             dtype=torch.uint8,
-            device=unswizzled_sf.device,
+            device=unswizzled_sf.place,
         )
         module.block_scale_interleave_sm100(unswizzled_sf, out)
         return out
@@ -341,12 +344,12 @@ def get_fp4_quantization_module(backend: str = "100"):
         out_val = torch.empty(
             (b, m, k // 2),
             dtype=torch.uint8,
-            device=input.device,
+            device=input.place,
         )
         out_sf = torch.empty(
             (b, _compute_swizzled_layout_sf_size(m, k // sf_vec_size, 128)),
             dtype=torch.uint8,
-            device=input.device,
+            device=input.place,
         )
         module.fp4_batched_quantize(
             input,
@@ -423,12 +426,12 @@ def get_fp4_quantization_module(backend: str = "100"):
         out_val = torch.empty(
             (b, m, k // 4),
             dtype=torch.uint8,
-            device=input.device,
+            device=input.place,
         )
         out_sf = torch.empty(
             (b, _compute_swizzled_layout_sf_size(m, k // (2 * sf_vec_size), 128)),
             dtype=torch.uint8,
-            device=input.device,
+            device=input.place,
         )
         module.silu_and_mul_nvfp4_batched_quantize(
             input,
@@ -610,7 +613,7 @@ def block_scale_interleave(unswizzled_sf: torch.Tensor) -> torch.Tensor:
         f"Input dtype must be uint8, got {unswizzled_sf.dtype}"
     )
 
-    major, minor = get_compute_capability(unswizzled_sf.device)
+    major, minor = get_compute_capability(unswizzled_sf.place)
     device_arch = f"{major * 10 + minor}"
 
     return get_fp4_quantization_module(device_arch).block_scale_interleave_sm100(
@@ -670,7 +673,7 @@ def shuffle_matrix_a(input_tensor: torch.Tensor, epilogue_tile_m: int) -> torch.
     """
     row_indices = get_shuffle_matrix_a_row_indices(input_tensor, epilogue_tile_m)
 
-    return input_tensor[row_indices.to(input_tensor.device)]
+    return input_tensor[row_indices.to(input_tensor.place)]
 
 
 def shuffle_matrix_sf_a(
@@ -691,7 +694,7 @@ def shuffle_matrix_sf_a(
 
     row_indices = get_shuffle_matrix_sf_a_row_indices(input_tensor, epilogue_tile_m)
 
-    w_shuffled = input_tensor[row_indices.to(input_tensor.device)]
+    w_shuffled = input_tensor[row_indices.to(input_tensor.place)]
 
     # 128x4
     return block_scale_interleave(w_shuffled)
@@ -798,7 +801,7 @@ def mxfp4_dequantize(a_fp4, a_sf):
     return e2m1_and_ufp8sf_scale_to_float(
         a_fp4.cpu().view(torch.uint8),
         a_sf.cpu().view(torch.uint8).reshape(-1),
-        torch.tensor([1.0], device=a_fp4.device),
+        torch.tensor([1.0], device=a_fp4.place),
         32,
         0,
         True,
@@ -853,7 +856,7 @@ def nvfp4_batched_quantize(
             - Quantized tensor of shape [B, M, K/2] with dtype FLOAT4_E2M1X2
             - Scale factors tensor with shape determined by layout and sf_vec_size
     """
-    major, minor = get_compute_capability(a.device)
+    major, minor = get_compute_capability(a.place)
     device_arch = f"{major * 10 + minor}"
     a_fp4, a_sf = get_fp4_quantization_module(device_arch).fp4_batched_quantize_sm100(
         a,

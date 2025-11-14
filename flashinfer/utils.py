@@ -182,7 +182,7 @@ def _unpack_paged_kv_cache(
 
 def get_alibi_slopes(n_heads: int) -> torch.Tensor:
     n = 2 ** math.floor(math.log2(n_heads))
-    m_0 = 2.0 ** (-8.0 / n)
+    m_0 = torch.tensor(2.0 ** (-8.0 / n))
     m = torch.pow(m_0, torch.arange(1, 1 + n))
     if n < n_heads:
         m_hat_0 = 2.0 ** (-4.0 / n)
@@ -262,7 +262,7 @@ def _check_cached_qkv_data_type(
 
 
 def use_paddle_compatible_api() -> bool:
-    return os.environ.get("PADDLE_COMPATIBLE_API", "0").lower() in ["1", "on", "true"]
+    return os.environ.get("PADDLE_COMPATIBLE_API", "1").lower() in ["1", "on", "true"]
 
 
 if use_paddle_compatible_api() or torch.torch_version.TorchVersion(
