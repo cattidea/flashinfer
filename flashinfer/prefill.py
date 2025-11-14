@@ -201,7 +201,7 @@ def get_trtllm_gen_prefill_module():
         out: Optional[torch.Tensor] = None,
         sinks: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-        sm_count = get_device_sm_count(query.device)
+        sm_count = get_device_sm_count(query.place)
         if out is None:
             out = torch.empty_like(query)
         bmm1_scale = (
@@ -884,7 +884,7 @@ def single_prefill_with_kv_cache_with_jit_module(
     window_left: int = -1,
     return_lse: bool = False,
 ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
-    device = q.device
+    device = q.place
     tmp = _get_cache_buf(
         "single_prefill_with_kv_cache_tmp", 32 * 1024 * 1024, device=device
     )
@@ -1102,7 +1102,7 @@ def single_prefill_with_kv_cache(
     """
     _check_pos_encoding_mode(pos_encoding_mode)
     _check_kv_layout(kv_layout)
-    tmp = _get_cache_buf("single_prefill_with_kv_cache_tmp", 32 * 1024 * 1024, q.device)
+    tmp = _get_cache_buf("single_prefill_with_kv_cache_tmp", 32 * 1024 * 1024, q.place)
     if logits_soft_cap is None:
         logits_soft_cap = 0.0
     if sm_scale is None:
@@ -1127,7 +1127,7 @@ def single_prefill_with_kv_cache(
 
     lse = None
     if return_lse:
-        lse = torch.empty((q.size(0), q.size(1)), dtype=torch.float32, device=q.device)
+        lse = torch.empty((q.size(0), q.size(1)), dtype=torch.float32, device=q.place)
 
     if is_float8(q):
         # FP8 quant enabled, do sanity check:
@@ -1137,15 +1137,15 @@ def single_prefill_with_kv_cache(
         assert q.dtype == k.dtype == v.dtype
         assert q.shape[-1] == k.shape[-1] == v.shape[-1]
         if scale_q is None:
-            scale_q = torch.ones(q.shape[1], dtype=torch.float32, device=q.device)
+            scale_q = torch.ones(q.shape[1], dtype=torch.float32, device=q.place)
         if scale_k is None:
-            scale_k = torch.ones(k.shape[1], dtype=torch.float32, device=q.device)
+            scale_k = torch.ones(k.shape[1], dtype=torch.float32, device=q.place)
         if scale_v is None:
-            scale_v = torch.ones(v.shape[1], dtype=torch.float32, device=q.device)
+            scale_v = torch.ones(v.shape[1], dtype=torch.float32, device=q.place)
 
     if backend == "auto":
         backend = determine_attention_backend(
-            q.device,
+            q.place,
             PosEncodingMode[pos_encoding_mode].value,
             use_fp16_qk_reduction,
             packed_custom_mask is not None,  # use_custom_mask
@@ -1156,7 +1156,7 @@ def single_prefill_with_kv_cache(
     # o_dtype should be provided for FP8 attention
     if o_dtype is None:
         o_dtype = q.dtype
-    out = torch.empty(q.shape[:-1] + v.shape[-1:], dtype=o_dtype, device=q.device)
+    out = torch.empty(q.shape[:-1] + v.shape[-1:], dtype=o_dtype, device=q.place)
 
     module = get_single_prefill_module(
         backend,
@@ -1182,7 +1182,7 @@ def single_prefill_with_kv_cache(
         TensorLayout[kv_layout].value,
         window_left,
         packed_custom_mask,
-        _get_cache_alibi_slopes_buf(q.shape[1], q.device),
+        _get_cache_alibi_slopes_buf(q.shape[1], q.place),
         logits_soft_cap,
         sm_scale,
         scale_q,
@@ -1423,7 +1423,7 @@ class BatchPrefillWithPagedKVCacheWrapper:
             self._float_workspace_buffer.numel()
             * self._float_workspace_buffer.element_size()
         )
-        self.device = float_workspace_buffer.device
+        self.device = float_workspace_buffer.place
         self._vector_sparse_indptr_buffer: Optional[torch.Tensor] = None
         if backend in ["fa3", "auto", "trtllm-gen"]:
             # NOTE(Zihao): assume maximum accumulate kv length is 16M
@@ -1444,7 +1444,7 @@ class BatchPrefillWithPagedKVCacheWrapper:
         self._pin_memory_int_workspace_buffer = torch.empty(
             self._int_workspace_buffer.shape,
             dtype=self._int_workspace_buffer.dtype,
-            device="cpu",
+            device="cuda",
             pin_memory=True,
         )
         self._use_cuda_graph = use_cuda_graph
@@ -1516,7 +1516,7 @@ class BatchPrefillWithPagedKVCacheWrapper:
         self._pin_memory_int_workspace_buffer = torch.empty(
             self._int_workspace_buffer.shape,
             dtype=self._int_workspace_buffer.dtype,
-            device="cpu",
+            device="cuda",
             pin_memory=True,
         )
 
@@ -1765,7 +1765,7 @@ class BatchPrefillWithPagedKVCacheWrapper:
             )
             self._paged_kv_indices_buf[: len(paged_kv_indices)].copy_(
                 paged_kv_indices,
-                non_blocking=(paged_kv_indices.device == self.device) and non_blocking,
+                non_blocking=(paged_kv_indices.place == self.device) and non_blocking,
             )
 
             if packed_custom_mask is not None:
@@ -1779,7 +1779,7 @@ class BatchPrefillWithPagedKVCacheWrapper:
                     )
                 self._custom_mask_buf[: len(packed_custom_mask)].copy_(
                     packed_custom_mask,
-                    non_blocking=(packed_custom_mask.device == self.device)
+                    non_blocking=(packed_custom_mask.place == self.device)
                     and non_blocking,
                 )
                 # NOTE(Zihao): mask_indptr has the same length as qo_indptr
@@ -1844,7 +1844,7 @@ class BatchPrefillWithPagedKVCacheWrapper:
                 vector_sparse_indptr_host = torch.cat(
                     [
                         torch.tensor(
-                            [0], dtype=torch.int32, device=kv_lens_arr_host.device
+                            [0], dtype=torch.int32, device=kv_lens_arr_host.place
                         ),
                         torch.cumsum(kv_lens_arr_host, dim=0, dtype=torch.int32),
                     ],
@@ -2036,7 +2036,7 @@ class BatchPrefillWithPagedKVCacheWrapper:
             * The logsumexp of attention output, shape: ``[qo_indptr[-1], num_qo_heads]``.
         """
         if enable_pdl is None:
-            enable_pdl = device_support_pdl(q.device)
+            enable_pdl = device_support_pdl(q.place)
         k_cache, v_cache = _unpack_paged_kv_cache(paged_kv_cache, self._kv_layout)
         _check_cached_qkv_data_type(
             q, k_cache, self._cached_q_data_type, self._cached_kv_data_type
@@ -2072,20 +2072,20 @@ class BatchPrefillWithPagedKVCacheWrapper:
         if return_lse:
             if lse is None:
                 lse = torch.empty(
-                    (q.size(0), q.size(1)), dtype=torch.float32, device=q.device
+                    (q.size(0), q.size(1)), dtype=torch.float32, device=q.place
                 )
             else:
                 check_shape_dtype_device(
-                    lse, (q.size(0), q.size(1)), torch.float32, q.device, "lse"
+                    lse, (q.size(0), q.size(1)), torch.float32, q.place, "lse"
                 )
 
         if out is None:
             out = torch.empty(
-                q.shape[:-1] + v_cache.shape[-1:], dtype=q.dtype, device=q.device
+                q.shape[:-1] + v_cache.shape[-1:], dtype=q.dtype, device=q.place
             )
         else:
             check_shape_dtype_device(
-                out, q.shape[:-1] + v_cache.shape[-1:], q.dtype, q.device, "out"
+                out, q.shape[:-1] + v_cache.shape[-1:], q.dtype, q.place, "out"
             )
 
         if self._custom_mask_buf is not None:
@@ -2169,7 +2169,7 @@ class BatchPrefillWithPagedKVCacheWrapper:
                 run_args += [
                     self._custom_mask_buf,
                     self._mask_indptr_buf,
-                    _get_cache_alibi_slopes_buf(q.shape[1], q.device),
+                    _get_cache_alibi_slopes_buf(q.shape[1], q.place),
                     self._prefix_len_ptr,
                     self._token_pos_in_items_ptr,
                     self._max_item_len_ptr,
@@ -2420,7 +2420,7 @@ class BatchPrefillWithRaggedKVCacheWrapper:
 
         self._kv_layout = kv_layout
         self._float_workspace_buffer = float_workspace_buffer
-        self.device = float_workspace_buffer.device
+        self.device = float_workspace_buffer.place
         self._int_workspace_buffer = torch.empty(
             (8 * 1024 * 1024,), dtype=torch.uint8, device=self.device
         )
@@ -2428,7 +2428,7 @@ class BatchPrefillWithRaggedKVCacheWrapper:
             self._int_workspace_buffer.shape,
             dtype=torch.uint8,
             pin_memory=True,
-            device="cpu",
+            device="cuda",
         )
         self._use_cuda_graph = use_cuda_graph
         if use_cuda_graph:
@@ -2482,7 +2482,7 @@ class BatchPrefillWithRaggedKVCacheWrapper:
         self._pin_memory_int_workspace_buffer = torch.empty(
             self._int_workspace_buffer.shape,
             dtype=self._int_workspace_buffer.dtype,
-            device="cpu",
+            device="cuda",
             pin_memory=True,
         )
 
@@ -2727,7 +2727,7 @@ class BatchPrefillWithRaggedKVCacheWrapper:
             if self._backend == "cutlass":
                 # insert qo_indptr.device to 9th position (0-indexed) of get_module_args
                 new_get_module_args = (
-                    get_module_args[:9] + (qo_indptr.device,) + get_module_args[9:]
+                    get_module_args[:9] + (qo_indptr.place,) + get_module_args[9:]
                 )
                 self._cached_module = get_fmha_module(*new_get_module_args)
             else:
@@ -2872,7 +2872,7 @@ class BatchPrefillWithRaggedKVCacheWrapper:
             * The logsumexp of attention output, shape: ``[qo_indptr[-1], num_qo_heads]``.
         """
         if enable_pdl is None:
-            enable_pdl = device_support_pdl(q.device)
+            enable_pdl = device_support_pdl(q.place)
         _check_cached_qkv_data_type(
             q, k, self._cached_q_data_type, self._cached_kv_data_type
         )
@@ -2893,19 +2893,19 @@ class BatchPrefillWithRaggedKVCacheWrapper:
         if return_lse:
             if lse is None:
                 lse = torch.empty(
-                    (q.size(0), q.size(1)), dtype=torch.float32, device=q.device
+                    (q.size(0), q.size(1)), dtype=torch.float32, device=q.place
                 )
             else:
                 check_shape_dtype_device(
-                    lse, (q.size(0), q.size(1)), torch.float32, q.device, "lse"
+                    lse, (q.size(0), q.size(1)), torch.float32, q.place, "lse"
                 )
         if out is None:
             out = torch.empty(
-                q.shape[:-1] + v.shape[-1:], dtype=q.dtype, device=q.device
+                q.shape[:-1] + v.shape[-1:], dtype=q.dtype, device=q.place
             )
         else:
             check_shape_dtype_device(
-                out, q.shape[:-1] + v.shape[-1:], q.dtype, q.device, "out"
+                out, q.shape[:-1] + v.shape[-1:], q.dtype, q.place, "out"
             )
         if self._backend == "cutlass":
             out, lse = fmha_varlen(
@@ -3017,19 +3017,19 @@ def fmha_varlen_plan(
     causal: bool,
 ):
     num_ctas = torch.cuda.get_device_properties(
-        qo_segment_offsets.device
+        qo_segment_offsets.place
     ).multi_processor_count
     work_indptr = torch.empty(
-        num_ctas + 1, device=qo_segment_offsets.device, dtype=torch.int32
+        num_ctas + 1, device=qo_segment_offsets.place, dtype=torch.int32
     )
     qo_tile_indices = torch.empty(
-        131072, device=qo_segment_offsets.device, dtype=torch.int32
+        131072, device=qo_segment_offsets.place, dtype=torch.int32
     )
     head_indices = torch.empty(
-        131072, device=qo_segment_offsets.device, dtype=torch.int32
+        131072, device=qo_segment_offsets.place, dtype=torch.int32
     )
     batch_indices = torch.empty(
-        131072, device=qo_segment_offsets.device, dtype=torch.int32
+        131072, device=qo_segment_offsets.place, dtype=torch.int32
     )
     module.plan(
         qo_segment_offsets,
@@ -3100,7 +3100,7 @@ def fmha_varlen(
     return_lse: bool = False,
 ) -> Union[torch.Tensor, Tuple[torch.Tensor, torch.Tensor]]:
     workspace_buffer = _get_cache_buf(
-        "fmha_varlen_cutlass_workspace", 32 * 1024 * 1024, q.device
+        "fmha_varlen_cutlass_workspace", 32 * 1024 * 1024, q.place
     )
     module = get_fmha_module(
         q.dtype,
@@ -3112,7 +3112,7 @@ def fmha_varlen(
         PosEncodingMode.NONE.value,
         False,  # use_sliding_window
         False,  # use_logits_soft_cap
-        q.device,
+        q.place,
     )
 
     nnz_qo, num_qo_heads, head_dim_qk = q.shape
@@ -3143,13 +3143,13 @@ def fmha_varlen(
             qo_total_len + max(max_qo_len, 128),
             num_qo_heads,
             head_dim_vo,
-            device=q.device,
+            device=q.place,
             dtype=q.dtype,
         )[max(max_qo_len, 128) :]
 
     if lse is None and return_lse:
         lse = torch.empty(
-            qo_total_len, num_qo_heads, device=q.device, dtype=torch.float32
+            qo_total_len, num_qo_heads, device=q.place, dtype=torch.float32
         )
 
     module.run(
@@ -3261,23 +3261,23 @@ def trtllm_ragged_attention_deepseek(
     )
 
     if enable_pdl is None:
-        enable_pdl = device_support_pdl(query.device)
+        enable_pdl = device_support_pdl(query.place)
 
     run_func = get_trtllm_gen_fmha_module().trtllm_ragged_attention
-    sm_count = get_device_sm_count(query.device)
+    sm_count = get_device_sm_count(query.place)
     if out is None:
         out = torch.empty(
             query.shape[0],
             query.shape[1],
             value.shape[2],
-            device=query.device,
+            device=query.place,
             dtype=query.dtype,
         )
     if return_lse and lse is None:
         lse = torch.empty(
             query.shape[0],
             query.shape[1],
-            device=query.device,
+            device=query.place,
             dtype=torch.float32,
         )
 
@@ -3381,7 +3381,7 @@ def trtllm_batch_context_with_kv_cache(
     """
 
     if enable_pdl is None:
-        enable_pdl = device_support_pdl(query.device)
+        enable_pdl = device_support_pdl(query.place)
 
     if isinstance(kv_cache, tuple):
         k_cache, v_cache = kv_cache
@@ -3397,7 +3397,7 @@ def trtllm_batch_context_with_kv_cache(
             k_cache, v_cache = kv_cache.unbind(dim=1)
 
     run_func = get_trtllm_gen_fmha_module().trtllm_paged_attention_context
-    sm_count = get_device_sm_count(query.device)
+    sm_count = get_device_sm_count(query.place)
 
     if out_dtype == "nvfp4" or (out_dtype is None and isinstance(out, FP4Tensor)):
         assert query.dtype == torch.float8_e4m3fn, (
@@ -3425,10 +3425,10 @@ def trtllm_batch_context_with_kv_cache(
                 round_up(query.shape[1] * query.shape[2] // o_sf_vec_size, 4),
             )
             out_scale_factor = torch.empty(
-                fp4_out_scale_shape, dtype=torch.float8_e4m3fn, device=query.device
+                fp4_out_scale_shape, dtype=torch.float8_e4m3fn, device=query.place
             )
             o_sf_start_index = 0
-            out = torch.empty(fp4_out_shape, dtype=torch.uint8, device=query.device)
+            out = torch.empty(fp4_out_shape, dtype=torch.uint8, device=query.place)
         else:
             raise ValueError(f"Invalid out: {out}")
 
@@ -3436,13 +3436,13 @@ def trtllm_batch_context_with_kv_cache(
         assert isinstance(out, torch.Tensor)
 
         # Use uint8 as the container dtype to compliant with next fp4 gemm.
-        check_shape_dtype_device(out, fp4_out_shape, torch.uint8, query.device, "out")
+        check_shape_dtype_device(out, fp4_out_shape, torch.uint8, query.place, "out")
 
         check_shape_dtype_device(
             out_scale_factor,
             fp4_out_scale_shape,
             torch.float8_e4m3fn,
-            query.device,
+            query.place,
             "out_scale_factor",
         )
 
@@ -3467,7 +3467,7 @@ def trtllm_batch_context_with_kv_cache(
         out = out if out is not None else torch.empty_like(query, dtype=out_dtype)
         if out_dtype not in (query.dtype, torch.float16, torch.bfloat16):
             raise ValueError(f"Unsupported out_dtype: {out_dtype}")
-        check_shape_dtype_device(out, query.shape, out_dtype, query.device, "out")
+        check_shape_dtype_device(out, query.shape, out_dtype, query.place, "out")
     else:
         raise ValueError(f"Invalid out_dtype: {out_dtype}")
 

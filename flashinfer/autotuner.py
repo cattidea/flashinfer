@@ -741,7 +741,7 @@ class AutoTuner:
             but with dimensions specified by the dims parameter.
         """
         dtype = origin_tensor.dtype
-        device = origin_tensor.device
+        device = origin_tensor.place
         shapes = []
         for d in dims:
             if isinstance(d, StaticDim):
