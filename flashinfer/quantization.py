@@ -30,7 +30,7 @@ def get_quantization_module():
 
 @register_custom_op("flashinfer::packbits", mutates_args=())
 def _packbits(x: torch.Tensor, bitorder: str) -> torch.Tensor:
-    device = x.device
+    device = x.place
     x = x.to(torch.bool)
     y = torch.empty((x.size(0) + 7) // 8, dtype=torch.uint8, device=device)
     get_quantization_module().packbits(x, bitorder, y)
@@ -39,7 +39,7 @@ def _packbits(x: torch.Tensor, bitorder: str) -> torch.Tensor:
 
 @register_fake_op("flashinfer::packbits")
 def _fake_packbits(x: torch.Tensor, bitorder: str) -> torch.Tensor:
-    return torch.empty((x.size(0) + 7) // 8, dtype=torch.uint8, device=x.device)
+    return torch.empty((x.size(0) + 7) // 8, dtype=torch.uint8, device=x.place)
 
 
 def packbits(x: torch.Tensor, bitorder: str = "big") -> torch.Tensor:
@@ -124,11 +124,11 @@ def segment_packbits(
     """
     seglen = indptr[1:] - indptr[:-1]
     packed_len = (seglen + 7) // 8
-    indptr_new = torch.zeros(len(indptr), dtype=indptr.dtype, device=indptr.device)
+    indptr_new = torch.zeros(len(indptr), dtype=indptr.dtype, device=indptr.place)
     indptr_new[1:] = torch.cumsum(packed_len, 0)
     output_nnzs = indptr_new[-1].item()
 
-    device = x.device
+    device = x.place
     indptr = indptr.to(torch.int32)
     indptr_new = indptr_new.to(torch.int32)
     y = torch.empty(output_nnzs, dtype=torch.uint8, device=device)

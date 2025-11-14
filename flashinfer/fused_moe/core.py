@@ -350,11 +350,17 @@ def get_cutlass_fused_moe_module(backend: str = "100", use_fast_build: bool = Fa
             )
             self.activation_type = activation_type
 
+            def paddle_dtype_to_tvm_ffi_dtype(dtype):
+                import tvm_ffi
+
+                dtype_str = str(dtype).split(".", 1)[-1]
+                return tvm_ffi.dtype(dtype_str)
+
             if instance_key not in MoERunner.runner_dict:
                 MoERunner.runner_dict[instance_key] = module.init(
-                    x_dtype,
-                    weight_dtype,
-                    output_dtype,
+                    paddle_dtype_to_tvm_ffi_dtype(x_dtype),
+                    paddle_dtype_to_tvm_ffi_dtype(weight_dtype),
+                    paddle_dtype_to_tvm_ffi_dtype(output_dtype),
                     use_deepseek_fp8_block_scale,
                     use_w4_group_scaling,
                     use_mxfp8_act_scaling,

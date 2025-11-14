@@ -188,7 +188,7 @@ def _unpack_paged_kv_cache(
 
 def get_alibi_slopes(n_heads: int) -> torch.Tensor:
     n = 2 ** math.floor(math.log2(n_heads))
-    m_0 = 2.0 ** (-8.0 / n)
+    m_0 = torch.tensor(2.0 ** (-8.0 / n))
     m = torch.pow(m_0, torch.arange(1, 1 + n))
     if n < n_heads:
         m_hat_0 = 2.0 ** (-4.0 / n)
