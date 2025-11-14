@@ -268,7 +268,7 @@ def _check_cached_qkv_data_type(
 
 
 def use_paddle_compatible_api() -> bool:
-    return os.environ.get("PADDLE_COMPATIBLE_API", "0").lower() in ["1", "on", "true"]
+    return os.environ.get("PADDLE_COMPATIBLE_API", "1").lower() in ["1", "on", "true"]
 
 
 if use_paddle_compatible_api() or torch.torch_version.TorchVersion(
@@ -1014,7 +1014,7 @@ def backend_requirement(
                 if tensor_arg is not None:
                     # Get compute capability from the first tensor
                     # Assume all tensors are on the same device/capability
-                    major, minor = get_compute_capability(tensor_arg.device)
+                    major, minor = get_compute_capability(tensor_arg.place)
                     capability = major * 10 + minor
 
                 if not is_backend_supported(backend, capability):

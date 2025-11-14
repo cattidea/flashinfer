@@ -1728,8 +1728,8 @@ def _check_mm_fp4_problem_size(
         )
     if alpha is not None and alpha.dtype != torch.float:
         raise ValueError(f"alpha must be a float tensor, got {alpha.dtype}")
-    if alpha is not None and alpha.numel() != 1:
-        raise ValueError(f"alpha must be a scalar, got {alpha.numel()}")
+    # if alpha is not None and alpha.numel() != 1:
+    #     raise ValueError(f"alpha must be a scalar, got {alpha.numel()}")
 
     if out_dtype not in (torch.bfloat16, torch.float16):
         raise ValueError(
