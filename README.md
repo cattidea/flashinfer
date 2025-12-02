@@ -25,7 +25,9 @@ Kernel Library for LLM Serving ❤️ PaddlePadddle
 > pip install paddlepaddle_gpu  # Install PaddlePaddle with GPU support, refer to https://www.paddlepaddle.org.cn/install/quick for more details
 > git clone https://github.com/PFCCLab/flashinfer.git
 > cd flashinfer
+> git submodule update --init
 > pip install apache-tvm-ffi>=0.1.2  # Use TVM FFI 0.1.2 or above
+> pip install filelock jinja2  # Install tools for jit compilation
 > pip install --no-build-isolation . -v
 > ```
 >
