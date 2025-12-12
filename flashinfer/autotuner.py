@@ -717,11 +717,15 @@ class AutoTuner:
         input_shapes: Tuple[torch.Size],
         tuning_config: TuningConfig,
     ) -> Tuple:
+        if hasattr(input_shapes, '__len__'):
+            shapes_tuple = tuple(tuple(s) if hasattr(s, '__iter__') else s for s in input_shapes)
+        else:
+            shapes_tuple = input_shapes
         return (
             custom_op,
             runner.__class__.__name__,
             hash(runner),
-            cls._find_nearest_profile(input_shapes, tuning_config),
+            cls._find_nearest_profile(shapes_tuple, tuning_config),
         )
 
     def _create_tensor_like(

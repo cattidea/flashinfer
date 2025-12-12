@@ -197,7 +197,7 @@ def get_alibi_slopes(n_heads: int) -> torch.Tensor:
     return m.float()
 
 
-_cache_buf: Dict[Tuple[str, torch.device], torch.Tensor] = {}
+_cache_buf: Dict[Tuple[str, "torch.device"], torch.Tensor] = {}
 
 
 def _get_cache_buf(name: str, bytes: int, device: torch.device) -> torch.Tensor:
@@ -525,7 +525,7 @@ def check_shape_dtype_device(
     x: torch.Tensor,
     expected_shape: Optional[Sequence[int]],
     expected_dtype: Optional[torch.dtype],
-    expected_device: Optional[torch.device],
+    expected_device: Optional["torch.device"],
     name: str,
 ) -> None:
     if expected_shape and tuple(x.shape) != torch.Size(expected_shape):
