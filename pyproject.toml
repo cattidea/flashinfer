@@ -19,7 +19,7 @@ requires-python = ">=3.9,<4.0"
 authors = [{ name = "FlashInfer team" }]
 license = "Apache-2.0"
 readme = "README.md"
-urls = { Homepage = "https://github.com/flashinfer-ai/flashinfer" }
+urls = { Homepage = "https://github.com/PFCCLab/flashinfer" }
 dynamic = ["dependencies", "version"]
 license-files = ["LICENSE", "LICENSE*.txt"]
 
