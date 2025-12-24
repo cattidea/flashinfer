@@ -2411,7 +2411,6 @@ def test_moe_quantization_classes(
     """
     device = paddle.get_device()
     compute_capability = cur_get_compute_capability(device)
-    print("Compute Capability: ", compute_capability)
     if compute_capability[0] in [11, 12]:
         pytest.skip("trtllm-gen does not support SM110/SM120/SM121 GPUs.")
     # Skip incompatible combinations

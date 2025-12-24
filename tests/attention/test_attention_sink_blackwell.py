@@ -250,6 +250,7 @@ def test_blackwell_trtllm_gen_context_attention_sink(
         atol, rtol = 1e-2, 1e-2
     else:
         raise ValueError(f"Unsupported dtype: {dtype}")
-
     ref_o = o_ref.float().numpy()
-    np.testing.assert_allclose(ref_o, paddle_o, atol=atol, rtol=rtol)
+    output_o = output.float().numpy()
+    np.testing.assert_allclose(ref_o, output_o, atol=atol, rtol=rtol)
+

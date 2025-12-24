@@ -302,9 +302,10 @@ def sink_attention_unified(
     if causal:
         if mode == "incremental":
             # For incremental: new token can attend to all previous tokens
-            mask = torch.ones(1, kv_len, device=q.device, dtype=torch.bool)
+            mask = torch.ones(1, kv_len, device=q.place.device, dtype=torch.bool)
             if window_left >= 0:
-                col_idx = torch.arange(kv_len, dtype=torch.int32, device=q.device)
+                col_idx = torch.arange(kv_len, dtype=torch.int32,
+                                       device=q.place.device)
                 mask = (kv_len - 1 - window_left) <= col_idx
         elif mode == "prefill":
             # For regular prefill: standard causal mask
@@ -312,13 +313,14 @@ def sink_attention_unified(
             #     1
             # ) >= torch.arange(0, kv_len, device=q.device).unsqueeze(0)
             mask = torch.arange(kv_len - qo_len, kv_len).unsqueeze(
-                1
-            ) >= torch.arange(0, kv_len).unsqueeze(0)
+                1) >= torch.arange(0, kv_len).unsqueeze(0)
             if window_left >= 0:
-                row_idx = torch.arange(qo_len, dtype=torch.int32, device=q.device)[
+                row_idx = torch.arange(qo_len, dtype=torch.int32,
+                                       device=q.place.device)[
                     :, None
                 ]
-                col_idx = torch.arange(kv_len, dtype=torch.int32, device=q.device)[
+                col_idx = torch.arange(kv_len, dtype=torch.int32,
+                                       device=q.place.device)[
                     None, :
                 ]
                 mask &= row_idx - window_left <= col_idx
