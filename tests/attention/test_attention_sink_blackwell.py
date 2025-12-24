@@ -17,6 +17,7 @@ limitations under the License.
 import einops
 import pytest
 import torch
+import numpy as np
 from tests.test_helpers.sink_attention_reference import sink_attention_unified
 
 import flashinfer
@@ -121,7 +122,8 @@ def test_blackwell_trtllm_gen_decode_attention_sink(
     else:
         raise ValueError(f"Unsupported dtype: {dtype}")
 
-    torch.testing.assert_close(o_ref, output, atol=atol, rtol=rtol)
+    # torch.testing.assert_close(o_ref, output, atol=atol, rtol=rtol)
+    np.testing.assert_allclose(o_ref, output, atol=atol, rtol=rtol)
 
 
 @pytest.mark.parametrize("dtype", [torch.float16, torch.bfloat16])
@@ -233,4 +235,5 @@ def test_blackwell_trtllm_gen_context_attention_sink(
     else:
         raise ValueError(f"Unsupported dtype: {dtype}")
 
-    torch.testing.assert_close(o_ref, output, atol=atol, rtol=rtol)
+    # torch.testing.assert_close(o_ref, output, atol=atol, rtol=rtol)
+    np.testing.assert_allclose(o_ref, output, atol=atol, rtol=rtol)

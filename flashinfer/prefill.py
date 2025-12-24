@@ -3479,6 +3479,7 @@ def trtllm_batch_context_with_kv_cache(
     )
 
     workspace_size = workspace_buffer.numel() * workspace_buffer.element_size()
+    workspace_num = workspace_size.item()
     run_func(
         out,
         out_scale_factor,
@@ -3501,7 +3502,7 @@ def trtllm_batch_context_with_kv_cache(
         cum_seq_lens_kv,
         sm_count,
         enable_pdl,
-        workspace_size,
+        workspace_num,
         sinks,
     )
     return (
