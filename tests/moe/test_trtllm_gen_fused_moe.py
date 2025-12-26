@@ -1119,7 +1119,9 @@ def routing_reference(expertLogits, topK, padding):
         paddedTokensPerExpertPrefixSum[ii + 1] = paddedTokensPerExpertPrefixSum[
             ii
         ] + divUpMul(numTokensPerExpert[ii], padding)
-    permutedBufferSize = paddedTokensPerExpertPrefixSum[numExperts]
+    min_size = numTokens * topK
+    permutedBufferSize = max(min_size, paddedTokensPerExpertPrefixSum[numExperts])
+    # permutedBufferSize = max(permutedBufferSize, 1)  # 确保至少为1，防止空张量
 
     expandedTokenIdxToPermutedIdx = -torch.ones(numTokens * topK, dtype=torch.int64)
     permutedIdxToExpandedIdx = -torch.ones(permutedBufferSize, dtype=torch.int64)
@@ -1139,7 +1141,7 @@ def routing_reference(expertLogits, topK, padding):
         "paddedTokensPerExpertPrefixSum": paddedTokensPerExpertPrefixSum.to(
             originalDevice
         ),
-        "permutedBufferSize": permutedBufferSize.item(),
+        "permutedBufferSize": permutedBufferSize,
         "expandedTokenIdxToPermutedIdx": expandedTokenIdxToPermutedIdx.to(
             originalDevice
         ),
@@ -1212,6 +1214,9 @@ def routing_reference_no_aux(
         scores = noaux_tc_ref(
             routing_logits, routing_bias, n_groups, top_k_groups, top_k, routed_scaling
         )
+    print("scores:", scores)
+    print("top_k:", top_k)
+    print("padding:", padding)
     permute_info = routing_reference(scores, top_k, padding)
     return permute_info, scores
 
@@ -2406,6 +2411,7 @@ def test_moe_quantization_classes(
     """
     device = paddle.get_device()
     compute_capability = cur_get_compute_capability(device)
+    print("Compute Capability: ", compute_capability)
     if compute_capability[0] in [11, 12]:
         pytest.skip("trtllm-gen does not support SM110/SM120/SM121 GPUs.")
     # Skip incompatible combinations
@@ -2497,9 +2503,14 @@ def test_moe_quantization_classes(
         )
     else:
         # Other routing methods (Renormalize, RenormalizeNaive, Llama4) use bfloat16
-        expert_logits = torch.randn((num_tokens, num_experts), device="cuda").to(
+        expert_logits = torch.randn((num_tokens, num_experts), device="cuda")
+        print("oringingin expert_logits:", expert_logits)
+        expert_logits = expert_logits.to(
             torch.bfloat16
         )
+    # torch.set_printoptions(edgeitems=1000)  # 显示更多边缘项
+    # torch.set_printoptions(linewidth=1000)  # 增加每行宽度
+    print("expert_logits:", expert_logits)
 
     if routing_config["has_routing_bias"]:
         routing_bias = torch.randn(num_experts, device="cuda", dtype=torch.bfloat16)

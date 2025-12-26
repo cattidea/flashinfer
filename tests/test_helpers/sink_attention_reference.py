@@ -345,29 +345,29 @@ def sink_attention_unified(
     else:
         # Non-causal mask
         if mode == "incremental":
-            mask = torch.ones(1, kv_len, device=q.device, dtype=torch.bool)
+            mask = torch.ones(1, kv_len, device=q.place, dtype=torch.bool)
             if window_left >= 0:
-                col_idx = torch.arange(kv_len, dtype=torch.int32, device=q.device)
+                col_idx = torch.arange(kv_len, dtype=torch.int32, device=q.place)
                 mask = (kv_len - 1 - window_left) <= col_idx
         else:  # prefill or chunk
-            mask = torch.ones(qo_len, kv_len, device=q.device, dtype=torch.bool)
+            mask = torch.ones(qo_len, kv_len, device=q.place, dtype=torch.bool)
             if window_left >= 0:
                 if mode == "chunk":
                     # For chunk mode, apply window relative to absolute positions
                     current_chunk_start = kv_len - qo_len
-                    row_idx = torch.arange(qo_len, dtype=torch.int32, device=q.device)[
+                    row_idx = torch.arange(qo_len, dtype=torch.int32, device=q.place)[
                         :, None
                     ]
-                    col_idx = torch.arange(kv_len, dtype=torch.int32, device=q.device)[
+                    col_idx = torch.arange(kv_len, dtype=torch.int32, device=q.place)[
                         None, :
                     ]
                     abs_row_positions = current_chunk_start + row_idx
                     mask = abs_row_positions - window_left <= col_idx
                 else:  # prefill
-                    row_idx = torch.arange(qo_len, dtype=torch.int32, device=q.device)[
+                    row_idx = torch.arange(qo_len, dtype=torch.int32, device=q.place)[
                         :, None
                     ]
-                    col_idx = torch.arange(kv_len, dtype=torch.int32, device=q.device)[
+                    col_idx = torch.arange(kv_len, dtype=torch.int32, device=q.place)[
                         None, :
                     ]
                     mask = row_idx - window_left <= col_idx

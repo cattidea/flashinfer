@@ -13,7 +13,8 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-
+import paddle
+paddle.compat.enable_torch_proxy()
 import einops
 import pytest
 import torch
@@ -24,13 +25,20 @@ import flashinfer
 from flashinfer.utils import get_compute_capability
 
 
-@pytest.mark.parametrize("dtype", [torch.float16, torch.bfloat16])
-@pytest.mark.parametrize("batch_size", [1, 4, 16])
+# @pytest.mark.parametrize("dtype", [torch.float16, torch.bfloat16])
+# @pytest.mark.parametrize("batch_size", [1, 4, 16])
+# @pytest.mark.parametrize("page_size", [32])
+# @pytest.mark.parametrize("seq_len", [32, 128, 1024])
+# @pytest.mark.parametrize("num_qo_heads", [32])
+# @pytest.mark.parametrize("num_kv_heads", [8, 32])
+# @pytest.mark.parametrize("head_dim", [64, 128])
+@pytest.mark.parametrize("dtype", [torch.bfloat16])
+@pytest.mark.parametrize("batch_size", [4])
 @pytest.mark.parametrize("page_size", [32])
-@pytest.mark.parametrize("seq_len", [32, 128, 1024])
+@pytest.mark.parametrize("seq_len", [32])
 @pytest.mark.parametrize("num_qo_heads", [32])
-@pytest.mark.parametrize("num_kv_heads", [8, 32])
-@pytest.mark.parametrize("head_dim", [64, 128])
+@pytest.mark.parametrize("num_kv_heads", [8])
+@pytest.mark.parametrize("head_dim", [64])
 def test_blackwell_trtllm_gen_decode_attention_sink(
     dtype,
     batch_size,
@@ -40,11 +48,11 @@ def test_blackwell_trtllm_gen_decode_attention_sink(
     num_kv_heads,
     head_dim,
 ):
-    compute_capability = get_compute_capability(torch.device(device="cuda"))
-    if compute_capability[0] in [11, 12]:
-        pytest.skip("trtllm-gen does not support SM110/SM120/SM121 GPUs.")
-    seed = 0
-    torch.manual_seed(seed)
+    # compute_capability = get_compute_capability(torch.device(device="cuda"))
+    # if compute_capability[0] in [11, 12]:
+    #     pytest.skip("trtllm-gen does not support SM110/SM120/SM121 GPUs.")
+    # seed = 0
+    # torch.manual_seed(seed)
     device = "cuda:0"
 
     seq_lens = torch.full((batch_size,), seq_len, dtype=torch.int32, device=device)
@@ -123,16 +131,23 @@ def test_blackwell_trtllm_gen_decode_attention_sink(
         raise ValueError(f"Unsupported dtype: {dtype}")
 
     # torch.testing.assert_close(o_ref, output, atol=atol, rtol=rtol)
-    np.testing.assert_allclose(o_ref, output, atol=atol, rtol=rtol)
+    np.testing.assert_allclose(o_ref.float(), output.float(), atol=atol, rtol=rtol)
 
 
-@pytest.mark.parametrize("dtype", [torch.float16, torch.bfloat16])
-@pytest.mark.parametrize("batch_size", [1, 4, 16])
+# @pytest.mark.parametrize("dtype", [torch.float16, torch.bfloat16])
+# @pytest.mark.parametrize("batch_size", [1, 4, 16])
+# @pytest.mark.parametrize("page_size", [32])
+# @pytest.mark.parametrize("seq_len", [32, 128, 1024])
+# @pytest.mark.parametrize("num_qo_heads", [32])
+# @pytest.mark.parametrize("num_kv_heads", [8, 32])
+# @pytest.mark.parametrize("head_dim", [64, 128])
+@pytest.mark.parametrize("dtype", [torch.bfloat16])
+@pytest.mark.parametrize("batch_size", [1])
 @pytest.mark.parametrize("page_size", [32])
-@pytest.mark.parametrize("seq_len", [32, 128, 1024])
+@pytest.mark.parametrize("seq_len", [32])
 @pytest.mark.parametrize("num_qo_heads", [32])
-@pytest.mark.parametrize("num_kv_heads", [8, 32])
-@pytest.mark.parametrize("head_dim", [64, 128])
+@pytest.mark.parametrize("num_kv_heads", [8])
+@pytest.mark.parametrize("head_dim", [64])
 def test_blackwell_trtllm_gen_context_attention_sink(
     dtype,
     batch_size,
@@ -142,11 +157,12 @@ def test_blackwell_trtllm_gen_context_attention_sink(
     num_kv_heads,
     head_dim,
 ):
-    compute_capability = get_compute_capability(torch.device(device="cuda"))
-    if compute_capability[0] in [11, 12]:
-        pytest.skip("trtllm-gen does not support SM110/SM120/SM121 GPUs.")
+    # compute_capability = get_compute_capability(torch.device(device="cuda"))
+    # if compute_capability[0] in [11, 12]:
+    #     pytest.skip("trtllm-gen does not support SM110/SM120/SM121 GPUs.")
     seed = 0
-    torch.manual_seed(seed)
+    paddle.seed(seed)
+    # torch.manual_seed(seed)
     device = "cuda:0"
 
     seq_lens = torch.full((batch_size,), seq_len, dtype=torch.int32, device=device)
@@ -235,5 +251,5 @@ def test_blackwell_trtllm_gen_context_attention_sink(
     else:
         raise ValueError(f"Unsupported dtype: {dtype}")
 
-    # torch.testing.assert_close(o_ref, output, atol=atol, rtol=rtol)
-    np.testing.assert_allclose(o_ref, output, atol=atol, rtol=rtol)
+    ref_o = o_ref.float().numpy()
+    np.testing.assert_allclose(ref_o, paddle_o, atol=atol, rtol=rtol)

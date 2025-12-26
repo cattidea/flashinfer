@@ -1133,7 +1133,7 @@ def get_trtllm_moe_sm100_module():
         enable_pdl: Optional[bool] = None,
     ) -> torch.Tensor:
         if enable_pdl is None:
-            enable_pdl = device_support_pdl(hidden_states.place.device)
+            enable_pdl = device_support_pdl(hidden_states.place)
         output = torch.empty(
             hidden_states.shape, dtype=torch.bfloat16, device=hidden_states.device
         )
@@ -1220,7 +1220,7 @@ def get_trtllm_moe_sm100_module():
         enable_pdl: Optional[bool] = None,
     ) -> torch.Tensor:
         if enable_pdl is None:
-            enable_pdl = device_support_pdl(hidden_states.place.device)
+            enable_pdl = device_support_pdl(hidden_states.place)
 
         # Call the C++ function for block scale MoE
         moe_op.trtllm_fp8_block_scale_moe(
@@ -1342,7 +1342,7 @@ def get_trtllm_moe_sm100_module():
                 num_tokens, top_k, dtype=routing_dtype, device=hidden_states.device
             )
         if enable_pdl is None:
-            enable_pdl = device_support_pdl(hidden_states.place.device)
+            enable_pdl = device_support_pdl(hidden_states.place)
         if output is None:
             output = torch.empty(
                 num_tokens,
