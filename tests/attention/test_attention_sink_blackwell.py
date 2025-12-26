@@ -253,4 +253,3 @@ def test_blackwell_trtllm_gen_context_attention_sink(
     ref_o = o_ref.float().numpy()
     output_o = output.float().numpy()
     np.testing.assert_allclose(ref_o, output_o, atol=atol, rtol=rtol)
-
