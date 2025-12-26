@@ -600,7 +600,8 @@ def round_up(x: int, y: int) -> int:
 
 @functools.cache
 def get_device_sm_count(device: torch.device) -> int:
-    return torch.cuda.get_device_properties(device).multi_processor_count
+    id = device.gpu_device_id()
+    return torch.cuda.get_device_properties(id).multi_processor_count
 
 
 class FP4Tensor:

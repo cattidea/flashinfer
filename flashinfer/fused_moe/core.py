@@ -13,7 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-
+import paddle
 import functools
 from enum import IntEnum
 from types import SimpleNamespace
@@ -266,7 +266,8 @@ def reorder_rows_for_gated_act_gemm(x):
     """
     row_indices = get_reorder_rows_for_gated_act_gemm_row_indices(x)
 
-    permute = lambda x: x[row_indices]
+    # permute = lambda x: x[row_indices]
+    permute = lambda x: paddle.index_select(x, row_indices, axis=0)
 
     return permute(x)
 
@@ -1132,7 +1133,7 @@ def get_trtllm_moe_sm100_module():
         enable_pdl: Optional[bool] = None,
     ) -> torch.Tensor:
         if enable_pdl is None:
-            enable_pdl = device_support_pdl(hidden_states.device)
+            enable_pdl = device_support_pdl(hidden_states.place)
         output = torch.empty(
             hidden_states.shape, dtype=torch.bfloat16, device=hidden_states.device
         )
@@ -1219,7 +1220,7 @@ def get_trtllm_moe_sm100_module():
         enable_pdl: Optional[bool] = None,
     ) -> torch.Tensor:
         if enable_pdl is None:
-            enable_pdl = device_support_pdl(hidden_states.device)
+            enable_pdl = device_support_pdl(hidden_states.place)
 
         # Call the C++ function for block scale MoE
         moe_op.trtllm_fp8_block_scale_moe(
@@ -1341,7 +1342,7 @@ def get_trtllm_moe_sm100_module():
                 num_tokens, top_k, dtype=routing_dtype, device=hidden_states.device
             )
         if enable_pdl is None:
-            enable_pdl = device_support_pdl(hidden_states.device)
+            enable_pdl = device_support_pdl(hidden_states.place)
         if output is None:
             output = torch.empty(
                 num_tokens,

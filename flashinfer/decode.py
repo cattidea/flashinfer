@@ -2221,7 +2221,7 @@ def trtllm_batch_decode_with_kv_cache(
     bmm2_scale = (
         bmm2_scale.item() if isinstance(bmm2_scale, torch.Tensor) else bmm2_scale
     )
-
+    work_size = (workspace_buffer.numel() * workspace_buffer.element_size()).item()
     run_func(
         out,
         out_scale_factor,
@@ -2242,7 +2242,7 @@ def trtllm_batch_decode_with_kv_cache(
         window_left,
         sm_count,
         enable_pdl,
-        workspace_buffer.numel() * workspace_buffer.element_size(),
+        work_size,
         sinks,
     )
 
