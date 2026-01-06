@@ -312,8 +312,7 @@ def sink_attention_unified(
             #     1
             # ) >= torch.arange(0, kv_len, device=q.device).unsqueeze(0)
             mask = torch.arange(kv_len - qo_len, kv_len).unsqueeze(
-                1
-            ) >= torch.arange(0, kv_len).unsqueeze(0)
+                1) >= torch.arange(0, kv_len).unsqueeze(0)
             if window_left >= 0:
                 row_idx = torch.arange(qo_len, dtype=torch.int32, device=q.device)[
                     :, None
@@ -343,10 +342,8 @@ def sink_attention_unified(
                 mask &= abs_row_positions - window_left <= col_idx
     else:
         # Non-causal mask
-        q_device = q.place
-        print("+++",q_device)
         if mode == "incremental":
-            mask = torch.ones(1, kv_len, device=q_device, dtype=torch.bool)
+            mask = torch.ones(1, kv_len, dtype=torch.bool)
             if window_left >= 0:
                 col_idx = torch.arange(kv_len, dtype=torch.int32, device=q.device)
                 mask = (kv_len - 1 - window_left) <= col_idx

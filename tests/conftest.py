@@ -145,7 +145,7 @@ def pytest_runtest_call(item):
     try:
         item.runtest()
     except:
-    #    assert(False)
+       assert(False)
     # try:
     #     item.runtest()
     # except (torch.cuda.OutOfMemoryError, RuntimeError) as e:
